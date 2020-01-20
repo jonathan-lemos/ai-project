@@ -16,6 +16,14 @@ class Point:
             return False
         return self.x == other.x and self.y == other.y
 
+    def __getitem__(self, index: int):
+        if index == 0:
+            return self.x
+        elif index == 1:
+            return self.y
+        else:
+            raise Exception(f"Points only have X (0) and Y (1) coordinates. You tried to index it with {index}.")
+
     def __hash__(self):
         return self.__hash
 
@@ -23,26 +31,37 @@ class Point:
         return f"({self.x}, {self.y})"
 
 
+Coord = Union[Tuple[int, int], Point]
+
+
+def conv_coord(c: Coord) -> Point:
+    if isinstance(c, Point):
+        return c
+    return Point(c[0], c[1])
+
+
 class Line:
-    def __init__(self, point1: Point, point2: Point):
-        self.point1 = point1
-        self.point2 = point2
+    def __init__(self, coord1: Coord, coord2: Coord):
+        self.point1 = conv_coord(coord1)
+        self.point2 = conv_coord(coord2)
         self.points = [self.point1, self.point2]
 
-        self.slope = float("inf") if point1.x == point2.x else (point2.y - point1.y) / (point2.x - point1.x)
-        self.y_intercept = point1.y - (self.slope * point1.x)
+        self.slope = float("inf") if self.point1.x == self.point2.x else (self.point2.y - self.point1.y) / (
+                self.point2.x - self.point1.x)
+        self.y_intercept = self.point1.y - (self.slope * self.point1.x)
 
-        self.height = abs(point1.y - point2.y)
-        self.width = abs(point1.x - point2.x)
+        self.height = abs(self.point1.y - self.point2.y)
+        self.width = abs(self.point1.x - self.point2.x)
 
-        self.x_left = min(point1.x, point2.x)
-        self.x_right = max(point1.x, point2.x)
-        self.y_top = max(point1.y, point2.y)
-        self.y_bottom = min(point1.y, point2.y)
+        self.x_left = min(self.point1.x, self.point2.x)
+        self.x_right = max(self.point1.x, self.point2.x)
+        self.y_top = max(self.point1.y, self.point2.y)
+        self.y_bottom = min(self.point1.y, self.point2.y)
 
         self.__hash = hash(frozenset([self.point1, self.point2]))
 
-    def __contains__(self, item: Point):
+    def __contains__(self, coord: Coord):
+        item = conv_coord(coord)
         if not (self.x_left <= item.x <= self.x_right):
             return False
         if self.slope == float("inf"):
@@ -50,7 +69,7 @@ class Line:
         diff = abs(self.x_to_y(item.x) - item.y)
         return diff < 0.0005
 
-    def x_to_y(self, x):
+    def x_to_y(self, x: Number):
         return self.slope * x + self.y_intercept
 
     def point_of_intersection(self, line: "Line") -> Union[Point, None]:
@@ -82,7 +101,8 @@ class Line:
 
 
 class Rect:
-    def __init__(self, point1: Point, point2: Point):
+    def __init__(self, coord1: Coord, coord2: Coord):
+        point1, point2 = [conv_coord(c) for c in [coord1, coord2]]
         self.width = abs(point1.x - point2.x)
         self.height = abs(point1.y - point2.y)
         self.upper_left = Point(min(point1.x, point2.x), min(point1.y, point2.y))
@@ -98,7 +118,8 @@ class Rect:
         ]
         self.__hash = hash((self.lower_left, self.upper_right))
 
-    def __contains__(self, point: Point) -> bool:
+    def __contains__(self, coord: Coord) -> bool:
+        point = conv_coord(coord)
         return self.upper_left.x <= point.x <= self.upper_right.x and self.upper_left.y <= point.y <= self.upper_right.y
 
     def __eq__(self, o):
@@ -114,12 +135,12 @@ class Rect:
 
 
 class Shape:
-    def __init__(self, *points: Point):
-        self.points = list(points)
+    def __init__(self, *coords: Coord):
+        self.points = [conv_coord(c) for c in coords]
         self.lines = [Line(p1, p2) for p1, p2 in
                       list(zip(self.points[:-1], self.points[1:]))]
         if self.points[-1] != self.points[0]:
-            self.lines += [(self.points[-1], self.points[0])]
+            self.lines += [Line(self.points[-1], self.points[0])]
         self.__hash = hash(tuple(self.points))
 
     def __eq__(self, other):
@@ -131,47 +152,76 @@ class Shape:
         return self.__hash
 
     def __str__(self) -> str:
-        return str(self.lines)
+        return " -> ".join(str(x) for x in self.points)
 
 
 class UI:
-    def __init__(self, bg_color: str = "white", pad_pct: Number = 0.05, debug: bool = False):
+    def __init__(self, screen_dim: Union[Rect, None], bg_color: str = "white", pad_pct: Number = 0.05,
+                 debug: bool = False):
         self.__bg_color = bg_color
         self.__debug = debug
         self.__pad_pct = pad_pct
-        self.objects = []
+        self.objects = set()
+        self.__turt = None
+        self.__screen = None
+        self.__screen_dim = screen_dim
+        self.__rendered = False
 
     def add(self, *objs: Union[Line, Rect, Shape], width: Number = 10, color: str = "black") -> None:
         for obj in objs:
-            self.objects.append((obj, width, color))
+            self.objects.add((obj, width, color))
+            if self.__rendered:
+                self.__draw((obj, width, color))
+
+    def done(self) -> None:
+        turtle.done()
+
+    def remove(self, *objs: Union[Line, Rect, Shape], width: Number = 10, color: str = "black") -> None:
+        for obj in objs:
+            self.objects.remove((obj, width, color))
+            if self.__rendered:
+                self.__draw((obj, width, self.__bg_color))
 
     def render(self) -> None:
-        turt = turtle.Turtle()
-        screen = turtle.Screen()
+        self.__rendered = True
 
-        screen.bgcolor(self.__bg_color)
+        self.__turt = turtle.Turtle()
+        self.__screen = turtle.Screen()
+
+        self.__screen.bgcolor(self.__bg_color)
 
         if not self.__debug:
-            turt.speed('fastest')
-            screen.tracer(0, 0)
+            self.__turt.speed('fastest')
+            self.__screen.tracer(0, 0)
         else:
-            turt.speed('slowest')
+            self.__turt.speed('slowest')
 
-        objs = [obj for obj, width, color in self.objects]
-        lines = [y for x in [[obj] if type(obj) == Line else obj.lines for obj in objs] for y in x]
-        points = [point for line in lines for point in [line.point1, line.point2]]
+        if self.__screen_dim:
+            ymin = self.__screen_dim.lower_left.y
+            ymax = self.__screen_dim.upper_right.y
+            xmin = self.__screen_dim.lower_left.x
+            xmax = self.__screen_dim.upper_right.x
+        else:
+            # get the maximum/minimum x, y to calculate the new coordinate system's bounds
+            objs = [obj for obj, width, color in self.objects]
+            lines = [y for x in [[obj] if type(obj) == Line else obj.lines for obj in objs] for y in x]
+            points = [point for line in lines for point in [line.point1, line.point2]]
 
-        ymin = min(point.y for point in points)
-        ymax = max(point.y for point in points)
-        xmin = min(point.x for point in points)
-        xmax = max(point.x for point in points)
+            ymin = min(point.y for point in points)
+            ymax = max(point.y for point in points)
+            xmin = min(point.x for point in points)
+            xmax = max(point.x for point in points)
+
+        # we need to adjust the coordinate system so objects look proportional and take up most of the window size
 
         width = xmax - xmin
         height = ymax - ymin
 
-        screen_ratio = screen.window_height() / screen.window_width()
+        # get the h/w ratios for the screen and our grid space
+        screen_ratio = self.__screen.window_height() / self.__screen.window_width()
         grid_ratio = height / width
 
+        # give extra space on one of the axes to make the adjusted coordinates proportional to the window size
         if screen_ratio > grid_ratio:
             height_diff = screen_ratio * width - height
 
@@ -183,22 +233,22 @@ class UI:
             xmax += width_diff / 2
             xmin -= width_diff / 2
 
+        # add a slight bit of padding so objects don't render right on the edge
         xpad = (xmax - xmin) * self.__pad_pct
         ypad = (ymax - ymin) * self.__pad_pct
 
-        screen.setworldcoordinates(llx=xmin - xpad,
-                                   lly=ymin - ypad,
-                                   urx=xmax + xpad,
-                                   ury=ymax + ypad)
+        self.__screen.setworldcoordinates(llx=xmin - xpad,
+                                          lly=ymin - ypad,
+                                          urx=xmax + xpad,
+                                          ury=ymax + ypad)
 
         if not self.__debug:
-            turt.hideturtle()
+            self.__turt.hideturtle()
 
         for obj in self.objects:
-            self.__draw(turt, obj)
+            self.__draw(obj)
 
-        screen.update()
-        turtle.done()
+        self.__screen.update()
 
     def points(self) -> Iterable[Point]:
         return (x.points for x in [x[0] for x in self.objects])
@@ -211,19 +261,21 @@ class UI:
                 for line in obj.lines:
                     yield line
 
-    def __draw(self, turt: turtle.Turtle, obj: Tuple[Union[Line, Rect, Shape], Number, str]) -> None:
+    def __draw(self, obj: Tuple[Union[Line, Rect, Shape], Number, str]) -> None:
         if isinstance(obj[0], Line):
-            self.__draw_line(turt, *obj)
+            self.__draw_line(*obj)
         else:
             for line in obj[0].lines:
-                self.__draw_line(turt, line, *obj[1:])
+                self.__draw_line(line, *obj[1:])
+        if self.__rendered:
+            self.__screen.update()
 
-    def __draw_line(self, turt: turtle.Turtle, line: Line, width: Number, color: str) -> None:
-        turt.pencolor(color)
-        turt.width(width)
+    def __draw_line(self, line: Line, width: Number, color: str) -> None:
+        self.__turt.pencolor(color)
+        self.__turt.width(width)
 
-        turt.penup()
-        turt.setpos(line.point1.x, line.point1.y)
-        turt.pendown()
+        self.__turt.penup()
+        self.__turt.setpos(line.point1.x, line.point1.y)
+        self.__turt.pendown()
 
-        turt.setpos(line.point2.x, line.point2.y)
+        self.__turt.setpos(line.point2.x, line.point2.y)
