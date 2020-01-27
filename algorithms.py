@@ -1,48 +1,71 @@
 from collections import defaultdict
-from functools import reduce
 from math import sqrt
 from prioritymap import prioritymap
-from typing import Callable, Iterable, Union
-from ui import Number, Point
+from typing import Callable, Iterable, Optional
+from ui import Coord, conv_coord, Number, Point
 
 
-def distance(p1: Point, p2: Point) -> Number:
+def distance(c1: Coord, c2: Coord) -> Number:
     """
     Distance formula. Returns the straight-line distance between two points.
-    :param p1: The first point.
-    :param p2: The second point.
-    :return: A Number representing the distance between these two points.
+
+    Args:
+        c1 (Coord): The first coordinate.
+        c2 (Coord): The second coordinate.
+
+    Returns:
+        A Number representing the euclidean distance between these two points.
     """
+
+    p1 = conv_coord(c1)
+    p2 = conv_coord(c2)
     return sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2)
 
 
-def a_star(start: Point,
-           end: Point,
+def a_star(start: Coord,
+           end: Coord,
            get_neighbors: Callable[[Point], Iterable[Point]],
            get_distance: Callable[[Point, Point], Number] = distance,
            heuristic: Callable[[Point], Number] = lambda point: 0,
-           callback: Union[Callable[[Iterable[Point]], None], None] = None) -> Union[Iterable[Point], None]:
+           callback: Optional[Callable[[Iterable[Point]], None]] = None) -> Optional[Iterable[Point]]:
     """
     Returns a path between the start and end points.
     This will always be the shortest path as long as the heuristic does not overestimate the cost between two points.
-    :param start: The point to start from.
-    :param end: The destination.
-    :param get_neighbors: A function that takes a Point and returns its neighbors.
-    Neighbors that have already been visited do not have to be removed from the result of this function.
-    If a destination cannot be found and get_neighbors continually returns new points (the search space is infinite),
-    this function will never return
-    :param get_distance: A function that computes the cost to travel between two given Points
-    By default this is the distance formula.
-    :param heuristic: A function that estimates the cost from a point to the destination.
-    A heuristic should never overestimate the actual cost if the optimal path is needed.
-    Higher heuristics find a destination faster, but the path will be less optimal.
-    By default this is a function that always returns 0.
-    :param callback: A callback that is called with every path this algorithm explores, or None to not use one.
-    If this is not None, the algorithm will run slowly as the algorithm has to build
-    :return: An Iterable of points representing the path from start to end, or None if no path could be found.
+
+    Args:
+        start (Coord): The point to start from.
+
+        end (Coord): The destination.
+
+        get_neighbors (Callable[[Point], Iterable[Point]]):
+            A function that takes a Line and returns its neighbors.
+            The line represents the search going from line.point1 to line.point2.
+            Neighbors that have already been visited do not have to be removed from the result of this function.
+            If a destination cannot be found and get_neighbors continually returns new points (the search space is infinite), this function will never return
+
+        get_distance (Callable[[Point, Point], Number]):
+            A function that computes the cost to travel between two given Points
+            By default this is the distance formula.
+
+        heuristic (Callable[[Point], Number]):
+            A function that estimates the cost from a point to the destination.
+            A heuristic should never overestimate the actual cost if the optimal path is needed.
+            Higher heuristics find a destination faster, but the path will be less optimal.
+            By default this is a function that always returns 0.
+
+        callback (Optional[Callable[[Iterable[Point]], None]]:
+            A callback that is called with every path this algorithm explores, or None to not use one.
+            If this is not None, the algorithm will run slowly as the algorithm has to build
+
+    Returns:
+         An Iterable of points representing the path from start to end, or None if no path could be found.
     """
 
+    start = conv_coord(start)
+    end = conv_coord(end)
+
     to_search = prioritymap()
+    searched = set()
 
     prev = {}
     cost = defaultdict(lambda: float("inf"))
@@ -64,9 +87,12 @@ def a_star(start: Point,
 
     while len(to_search) > 0:
         curr_cost, current_set = to_search.min()
+
         current = current_set.pop()
         if len(current_set) == 0:
             to_search.pop()
+        if current in searched:
+            continue
 
         if callback:
             callback(build_path(current))
@@ -74,15 +100,18 @@ def a_star(start: Point,
         if current == end:
             return build_path(current)
 
-        for neighbor in get_neighbors(current):
+        for neighbor in set(get_neighbors(current)) - searched:
             calc = cost[current] + get_distance(current, neighbor)
 
             if calc < cost[neighbor]:
                 prev[neighbor] = current
                 cost[neighbor] = calc
+
                 cost_with_heuristic[neighbor] = calc + heuristic(neighbor)
                 if cost_with_heuristic[neighbor] in to_search:
                     to_search[cost_with_heuristic[neighbor]].add(neighbor)
                 else:
                     to_search[cost_with_heuristic[neighbor]] = {neighbor}
+
+        searched.add(current)
     return None
