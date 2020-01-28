@@ -1,5 +1,5 @@
 import turtle
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, List, Optional, Tuple, Union
 from math import sqrt
 
 Number = Union[int, float]
@@ -452,7 +452,7 @@ class UI:
         self.__bg_color = bg_color
         self.__debug = debug
         self.__pad_pct = pad_pct
-        self.__objects = set()
+        self.__objects = {}
 
         self.__turt = turtle.Turtle()
         self.__screen = turtle.Screen()
@@ -467,10 +467,19 @@ class UI:
 
         self.__screen_dim = screen_dim
         self.__rendered = False
-        self.__text_buf = []
 
-    def add(self, *objs: Union[Line, Rect, Shape], width: Number = 10, color: str = "black",
-            fillcolor: Optional[str] = None) -> None:
+    def add(self,
+            *objs: Union[str, Line, Rect, Shape, Iterable[Union[str, Line, Rect, Shape]]],
+            width: Number = 10,
+            color: str = "black",
+            fillcolor: Optional[str] = None,
+            coord: Optional[Coord] = (0, 0),
+            align: str = "center",
+            font_face: str = "Comic Sans MS",
+            font_size: int = 10,
+            font_type: str = "normal",
+            font_color: str = "black") -> None:
+
         """Adds several lines, rectangles, or shapes to the UI.
         These are all drawn in one step unless debug mode is enabled (see constructor).
         If the UI has been rendered, these are displayed once this function returns (see render())
@@ -480,43 +489,62 @@ class UI:
             ui.add(*list_of_lines, width=40, color="red")
 
         Args:
-            *objs (Union[Line, Rect, Shape]): A varargs list of zero or more lines, rectangles, and shapes to add to the UI.
-            width (Number): The width of the lines. By default this is 10. I'm not entirely sure what the unit is.
-            color (str): The color of the lines. By default this is "black".
-            fillcolor (Optional[str]): The optional fill color of the rectangles and shapes. By default this is None.
-        """
+            *objs (Union[Line, Rect, Shape, str]):
+            A varargs sequence of zero or more lines, rectangles, shapes, and/or text to add to the UI.
+            These can also be iterables of the above.
 
-        for obj in objs:
-            self.__objects.add((obj, width, color, fillcolor))
-            if self.__rendered:
-                self.__draw((obj, width, color, fillcolor))
-        if self.__rendered:
-            self.__screen.update()
 
-    def print(self, coord: Coord, text: str, align: str = "center", font_face: str = "Comic Sans MS",
-              font_size: int = 10, font_type: str = "normal", font_color: str = "black"):
-        """Prints text on the UI.
+            width (Number): The width of the lines. By default this is 10. I'm not entirely sure what the unit is. This argument is not used for text.
 
-        Args:
-            coord (Coord): The Point/(Number, Number) to put the text on.
-            text (str): The text to print.
+            color (str): The color of the lines. By default this is "black". This argument is not used for text.
+
+            fillcolor (Optional[str]): The optional fill color of the rectangles and shapes. By default this is None. This argument is only used for Rect and Shape.
+
+            coord (Optional[Coord]): A Point or (Number, Number) to render text at. This argument is only used for text, and MUST BE GIVEN for text.
+
             align: (str): "left"   - Put the coord on the left edge of the text.
                           "center" - Put the coord in the middle of the text.
                           "right"  - Put the coord on the right edge of the text.
-            font_face (str): The font to use. By default this is "Comic Sans MS".
-            font_size (int): The font size to use in pt. By default this is 10.
-            font_type (str): Used to denote "bold" or "italic" text. By default this is "normal".
-            font_color (str): The color of the text. By default this is "black".
+                          This argument is only used for text.
+
+            font_face (str): The font to use. By default this is "Comic Sans MS". This argument is only used for text.
+
+            font_size (int): The font size to use in pt. By default this is 10. This argument is only used for text.
+
+            font_type (str): Used to denote "bold" or "italic" text. By default this is "normal". This argument is only used for text.
+
+            font_color (str): The color of the text. By default this is "black". This argument is only used for text.
         """
 
-        if not self.__rendered:
-            self.__text_buf.append((coord, text, align, font_face, font_size, font_type, font_color))
-        else:
-            self.__turt.penup()
-            self.__turt.setpos(*coord)
-            self.__turt.color(font_color)
-            self.__turt.write(text, align=align, font=(font_face, font_size, font_type))
+        def do_add(ob):
+            if isinstance(ob, str):
+                if coord is None:
+                    raise Exception(f"Text argument '{ob}' given to add() without corresponding coord argument.")
+                tup = (ob, coord, align, font_face, font_size, font_type, font_color)
+            elif isinstance(ob, Line):
+                tup = (ob, width, color)
+            else:
+                tup = (ob, width, color, fillcolor)
 
+            self.__objects[tup] = None
+            if self.__rendered:
+                self.__objects[tup] = self.__draw(tup)
+
+        for obj in objs:
+            try:
+                if isinstance(obj, str):
+                    raise TypeError
+                tmp = iter(obj)
+            except TypeError:
+                do_add(obj)
+                continue
+            for o in tmp:
+                do_add(o)
+
+        if self.__rendered:
+            self.__screen.update()
+
+    # noinspection PyMethodMayBeStatic
     def done(self) -> None:
         """Must be the last call in any program using UI.
         This is a limitation of turtle.
@@ -548,13 +576,21 @@ class UI:
            """
 
         ret = True
+        if self.__rendered:
+            self.screen().update()
         for obj in objs:
-            if (obj, width, color, fillcolor) in self.__objects:
-                self.__objects.remove((obj, width, color, fillcolor))
+            tup = (obj, width, color, fillcolor)
+            if tup in self.__objects:
                 if self.__rendered:
-                    self.__draw((obj, width, self.__bg_color, self.__bg_color))
+                    for identifier in self.__objects[tup]:
+                        self.__screen.getcanvas().delete(identifier)
+                        if identifier in self.__turt.items:
+                            self.__turt.items.remove(identifier)
+                self.__objects.pop((obj, width, color, fillcolor))
             else:
                 ret = False
+        if self.__rendered:
+            self.__screen.update()
         return ret
 
     def render(self) -> None:
@@ -616,10 +652,7 @@ class UI:
             self.__turt.hideturtle()
 
         for obj in self.__objects:
-            self.__draw(obj)
-
-        for text in self.__text_buf:
-            self.print(*text)
+            self.__objects[obj] = self.__draw(obj)
 
         self.__screen.update()
 
@@ -653,17 +686,20 @@ class UI:
         """Returns True if render() was called, False if not."""
         return self.__rendered
 
-    def __draw(self, obj: Tuple[Union[Line, Rect, Shape], Number, str, Optional[str]]) -> None:
+    def __draw(self, obj: Tuple) -> List[int]:
         if isinstance(obj[0], Line):
-            self.__draw_line(*obj[:-1])
+            return self.__draw_line(*obj)
+        elif isinstance(obj[0], str):
+            self.__draw_text(*obj)
+            return [0]
         else:
-            self.__draw_shape(obj[0].lines, *obj[1:])
+            return self.__draw_shape(obj[0].lines, *obj[1:])
 
-    def __draw_shape(self, lines: Iterable[Line], width: Number, color: str, fillcolor: Optional[str]):
+    def __draw_shape(self, lines: Iterable[Line], width: Number, color: str, fillcolor: Optional[str]) -> List[int]:
         lin = list(lines)
 
         if len(lin) == 0:
-            return
+            return []
 
         self.__turt.pencolor(color)
         self.__turt.width(width)
@@ -674,18 +710,18 @@ class UI:
         if fillcolor:
             self.__turt.fillcolor(fillcolor)
             self.__turt.begin_fill()
+            res = [[self.__undo_buf()[-1][1]]]
+        else:
+            res = []
 
-        self.__turt.pendown()
-        self.__turt.setpos(lin[0].point2.x, lin[0].point2.y)
-
-        for line in lin[1:]:
-            self.__turt.setpos(line.point1.x, line.point1.y)
-            self.__turt.setpos(line.point2.x, line.point2.y)
+        res += [self.__draw_line(line, width, color) for line in lin]
 
         if fillcolor:
             self.__turt.end_fill()
 
-    def __draw_line(self, line: Line, width: Number, color: str) -> None:
+        return [y for x in res for y in x]
+
+    def __draw_line(self, line: Line, width: Number, color: str) -> List[int]:
         self.__turt.pencolor(color)
         self.__turt.width(width)
 
@@ -694,3 +730,38 @@ class UI:
         self.__turt.pendown()
 
         self.__turt.setpos(line.point2.x, line.point2.y)
+
+        # this horseshit gets the correct item id from the undo buffer since sometimes it doesn't show up in turt.items
+        return [self.__undo_buf()[-1][4][0]]
+
+    def __draw_text(self, text: str, coord: Coord, align: str = "center", font_face: str = "Comic Sans MS",
+                    font_size: int = 10, font_type: str = "normal", font_color: str = "black") -> List[int]:
+        """Prints text on the UI.
+
+        Args:
+            coord (Coord): The Point/(Number, Number) to put the text on.
+            text (str): The text to print.
+            align: (str): "left"   - Put the coord on the left edge of the text.
+                          "center" - Put the coord in the middle of the text.
+                          "right"  - Put the coord on the right edge of the text.
+            font_face (str): The font to use. By default this is "Comic Sans MS".
+            font_size (int): The font size to use in pt. By default this is 10.
+            font_type (str): Used to denote "bold" or "italic" text. By default this is "normal".
+            font_color (str): The color of the text. By default this is "black".
+        """
+
+        self.__turt.penup()
+        self.__turt.setpos(*coord)
+        self.__turt.color(font_color)
+        self.__turt.write(text, align=align, font=(font_face, font_size, font_type))
+
+        return [self.__undo_buf()[-1][1][1]]
+
+    def __undo_buf(self) -> List:
+        return list(filter(lambda x: x != [None], self.__turt.undobuffer.buffer))
+
+    def turt(self):
+        return self.__turt
+
+    def screen(self):
+        return self.__screen

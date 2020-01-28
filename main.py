@@ -67,7 +67,7 @@ def arena_neighbors(point: Point):
 
 ui = UI(screen_dim=Rect((-1, -1), (36, 21)), bg_color="white")
 
-ui.add(*arena, width=8, fillcolor="green")
+ui.add(*arena, width=8)
 
 ui_lines = list(ui.lines())
 
@@ -88,8 +88,8 @@ def cross(center: Coord, leg_len: Number):
 ui.add(*cross(goal, 0.5), width=6, color="green")
 ui.add(*cross(start, 0.5), width=6, color="red")
 ui.render()
-ui.print(goal + (1, 1), "goal", align="left")
-ui.print(start - (1, 1), "start", align="right")
+ui.add("goal", coord=goal + (1, 1), align="left")
+ui.add("start", coord=start - (1, 1), align="right")
 
 pathbuf = None
 
@@ -104,7 +104,7 @@ def draw_path(points: Iterable[Point]):
     lin = list(Line(x, y) for x, y in zip(tmp[:-1], tmp[1:]))
     pathbuf = lin
     ui.add(*pathbuf, width=8, color="red")
-    # time.sleep(0.25)
+    time.sleep(0.25)
 
 
 res = a_star(
@@ -124,6 +124,8 @@ if not res:
 res_list = list(res)
 res_lines = [Line(x, y) for x, y in zip(res_list[:-1], res_list[1:])]
 
-ui.add(*res_lines, width=10, color="green")
+ui.add(res_lines, width=10, color="green")
+
+ui.remove(arena[0], width=8)
 
 ui.done()
