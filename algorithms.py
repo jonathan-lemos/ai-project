@@ -27,7 +27,8 @@ def a_star(start: Coord,
            get_neighbors: Callable[[Point], Iterable[Point]],
            get_distance: Callable[[Point, Point], Number] = distance,
            heuristic: Callable[[Point], Number] = lambda point: 0,
-           callback: Optional[Callable[[Iterable[Point]], None]] = None) -> Optional[Iterable[Point]]:
+           callback: Optional[Callable[[Iterable[Point]], None]] = None,
+           max_cost: Optional[Number] = None) -> Optional[Iterable[Point]]:
     """
     Returns a path between the start and end points.
     This will always be the shortest path as long as the heuristic does not overestimate the cost between two points.
@@ -108,10 +109,80 @@ def a_star(start: Coord,
                 cost[neighbor] = calc
 
                 cost_with_heuristic[neighbor] = calc + heuristic(neighbor)
+                if max_cost and cost_with_heuristic[neighbor] > max_cost:
+                    continue
                 if cost_with_heuristic[neighbor] in to_search:
                     to_search[cost_with_heuristic[neighbor]].add(neighbor)
                 else:
                     to_search[cost_with_heuristic[neighbor]] = {neighbor}
 
         searched.add(current)
+    return None
+
+
+def ara(start: Coord,
+        end: Coord,
+        get_neighbors: Callable[[Point], Iterable[Point]],
+        get_distance: Callable[[Point, Point], Number] = distance,
+        factors: Iterable[Number] = (10, 8, 6, 4, 2, 1),
+        heuristic: Callable[[Point], Number] = lambda point: 0,
+        callback: Optional[Callable[[Iterable[Point]], None]] = None,
+        ) -> Iterable[Iterable[Point]]:
+    factors = list(factors)
+
+    start = conv_coord(start)
+    end = conv_coord(end)
+
+    to_search = prioritymap()
+
+    prev = {}
+    cost = defaultdict(lambda: float("inf"))
+    cost_with_heuristic = defaultdict(lambda: float("inf"))
+
+    cost[start] = 0
+    cost_with_heuristic[start] = heuristic(start)
+
+    to_search[cost_with_heuristic[start]] = {start}
+
+    best_cost = float("inf")
+
+    def build_path(p: Point) -> Iterable[Point]:
+        path = []
+        tmp = p
+        while tmp != start:
+            path.append(tmp)
+            tmp = prev[tmp]
+        path.append(start)
+        return reversed(path)
+
+    while len(to_search) > 0 and len(factors) > 0:
+        curr_cost, current_set = to_search.min()
+
+        current = current_set.pop()
+        if len(current_set) == 0:
+            to_search.pop()
+
+        if callback:
+            callback(build_path(current))
+
+        if current == end:
+            # searched.remove(current)
+            if best_cost > cost[current]:
+                best_cost = cost[current]
+                yield build_path(current)
+            factors = factors[1:]
+            continue
+
+        for neighbor in set(get_neighbors(current)):
+            calc = cost[current] + get_distance(current, neighbor)
+
+            if calc < cost[neighbor]:
+                prev[neighbor] = current
+                cost[neighbor] = calc
+
+                cost_with_heuristic[neighbor] = calc + factors[0] * heuristic(neighbor)
+                if cost_with_heuristic[neighbor] in to_search:
+                    to_search[cost_with_heuristic[neighbor]].add(neighbor)
+                else:
+                    to_search[cost_with_heuristic[neighbor]] = {neighbor}
     return None

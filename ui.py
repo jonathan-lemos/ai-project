@@ -284,7 +284,7 @@ class Line:
 
         return self.__hash
 
-    def __len__(self) -> Number:
+    def length(self) -> Number:
         """Returns the euclidean distance of this Line (distance formula)."""
 
         return sqrt((self.point1.x - self.point2.x) ** 2 + (self.point1.y - self.point2.y) ** 2)
@@ -455,6 +455,7 @@ class UI:
         self.__objects = {}
 
         self.__turt = turtle.Turtle()
+        self.__turt.setundobuffer(50000)
         self.__screen = turtle.Screen()
 
         self.__screen.bgcolor(self.__bg_color)
@@ -473,7 +474,7 @@ class UI:
             width: Number = 10,
             color: str = "black",
             fillcolor: Optional[str] = None,
-            coord: Optional[Coord] = (0, 0),
+            coord: Optional[Coord] = None,
             align: str = "center",
             font_face: str = "Comic Sans MS",
             font_size: int = 10,
@@ -597,9 +598,6 @@ class UI:
         """Displays the UI's window and all objects within.
         If the dimensions are not set, this method will automatically detemine them."""
 
-        self.__rendered = True
-        self.__turt.clear()
-
         if self.__screen_dim:
             ymin = self.__screen_dim.lower_left.y
             ymax = self.__screen_dim.upper_right.y
@@ -643,10 +641,14 @@ class UI:
 
         self.__screen_dim = Rect((xmin, ymin), (xmax, ymax))
 
-        self.__screen.setworldcoordinates(llx=xmin - xpad,
-                                          lly=ymin - ypad,
-                                          urx=xmax + xpad,
-                                          ury=ymax + ypad)
+        if not self.__rendered:
+            self.__screen.setworldcoordinates(llx=xmin - xpad,
+                                              lly=ymin - ypad,
+                                              urx=xmax + xpad,
+                                              ury=ymax + ypad)
+            self.__turt.setundobuffer(100000)
+
+        self.__rendered = True
 
         if not self.__debug:
             self.__turt.hideturtle()
@@ -665,6 +667,8 @@ class UI:
         """Returns an iterable of lines in the UI."""
 
         for obj in (x[0] for x in self.__objects):
+            if isinstance(obj, str):
+                continue
             if isinstance(obj, Line):
                 yield obj
             else:
@@ -759,6 +763,13 @@ class UI:
 
     def __undo_buf(self) -> List:
         return list(filter(lambda x: x != [None], self.__turt.undobuffer.buffer))
+
+    def undo_buf(self) -> List:
+        return self.__undo_buf()
+
+    def clear(self):
+        self.turt().clear()
+        self.__objects = {}
 
     def turt(self):
         return self.__turt
