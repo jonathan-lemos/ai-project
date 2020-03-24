@@ -101,13 +101,13 @@ def do_thing(arena, goal, start):
             conv_coord(start),
             conv_coord(goal),
             arena_neighbors,
-            # lambda point: neighbors_free_space(ui_lines, 0.5, point),
+            # lambda point: neighbors_free_space(ui_lines, 1, point),
             distance,
-            [10, 5, 1],
+            [100, 50, 20, 1],
             lambda point: distance(point, Point(*goal)),
-            #        draw_path,
+                    # draw_path,
             #        max_cost
-    ), ["red", "green", "blue"]):
+    ), ["red", "green", "blue", "purple"]):
         res_list = list(path)
         res_lines = [Line(x, y) for x, y in zip(res_list[:-1], res_list[1:])]
 
@@ -142,4 +142,4 @@ start2 = Point(0, 0)
 do_thing(arena1, goal1, start1)
 
 # ui.done()
-time.sleep(3)
+# time.sleep(3)

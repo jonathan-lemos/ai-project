@@ -1,4 +1,5 @@
 import turtle
+import numpy as np
 from typing import Iterable, List, Optional, Tuple, Union
 from math import sqrt
 
@@ -253,10 +254,35 @@ class Line:
             True if the line segments intersect, False if not.
         """
 
-        poi = self.point_of_intersection(line)
-        if poi is None:
-            return False
-        return poi in Rect(self.point1, self.point2) and poi in Rect(line.point1, line.point2)
+        # poi = self.point_of_intersection(line)
+        # if poi is None:
+        #     return False
+        # return poi in Rect(self.point1, self.point2) and poi in Rect(line.point1, line.point2)
+
+        # line segment a given by endpoints a1, a2
+        # line segment b given by endpoints b1, b2
+        # return
+        def seg_intersect(a1, a2, b1, b2):
+            """
+            Returns the point of intersection of the lines passing through a2,a1 and b2,b1.
+            a1: [x, y] a point on the first line
+            a2: [x, y] another point on the first line
+            b1: [x, y] a point on the second line
+            b2: [x, y] another point on the second line
+            """
+            s = np.vstack([a1, a2, b1, b2])  # s for stacked
+            h = np.hstack((s, np.ones((4, 1))))  # h for homogeneous
+            l1 = np.cross(h[0], h[1])  # get first line
+            l2 = np.cross(h[2], h[3])  # get second line
+            x, y, z = np.cross(l1, l2)  # point of intersection
+            if z == 0:  # lines are parallel
+                return float('inf'), float('inf')
+            return x / z, y / z
+
+        tmp = seg_intersect(np.array([*self.point1]), np.array([*self.point2]), np.array([*line.point1]),
+                            np.array([*line.point2]))
+        return (max(self.x_left, line.x_left) - 0.005 <= tmp[0] <= min(self.x_right, line.x_right) + 0.005) and (
+                    max(self.y_bottom, line.y_bottom) - 0.005 <= tmp[1] <= min(self.y_top, line.y_top) + 0.005)
 
     def __eq__(self, other):
         """Returns True if this line equals another.
