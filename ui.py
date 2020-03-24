@@ -788,7 +788,13 @@ class UI:
         return [self.__undo_buf()[-1][1][1]]
 
     def __undo_buf(self) -> List:
-        return list(filter(lambda x: x != [None], self.__turt.undobuffer.buffer))
+        ret = []
+        for item in self.__turt.undobuffer.buffer:
+            if item is None or item[0] is None:
+                break
+            ret.append(item)
+        return ret
+        # return list(filter(lambda x: x != [None], self.__turt.undobuffer.buffer))
 
     def undo_buf(self) -> List:
         return self.__undo_buf()
