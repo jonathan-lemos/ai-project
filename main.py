@@ -52,9 +52,12 @@ def do_thing(arena, goal, start):
                 continue
             candidates |= set(shape.points)
 
+        def should_try_intersect(l1: Line, l2: Line):
+            return l1.x_left - 0.0005 <= l2.x_right + 0.0005 and l1.x_right + 0.0005 >= l2.x_left - 0.0005 and l1.y_bottom - 0.0005 <= l2.y_top + 0.0005 and l1.y_top + 0.0005 >= l2.y_bottom - 0.0005
+
         for cand in list(candidates):
             l = Line(point, cand)
-            if any(l.intersects(x) and l.point_of_intersection(x) != l.point1 and l.point_of_intersection(x) != l.point2
+            if any(should_try_intersect(l, x) and l.intersects(x) and l.point_of_intersection(x) != l.point1 and l.point_of_intersection(x) != l.point2
                    for
                    x in arena_lines):
                 candidates.remove(cand)
@@ -105,7 +108,7 @@ def do_thing(arena, goal, start):
             distance,
             [100, 50, 20, 1],
             lambda point: distance(point, Point(*goal)),
-                    # draw_path,
+            # draw_path,
             #        max_cost
     ), ["red", "green", "blue", "purple"]):
         res_list = list(path)
