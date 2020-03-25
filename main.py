@@ -9,19 +9,18 @@ def should_try_intersect(l1: Line, l2: Line):
     return l1.x_left - 0.0005 <= l2.x_right + 0.0005 and l1.x_right + 0.0005 >= l2.x_left - 0.0005 and l1.y_bottom - 0.0005 <= l2.y_top + 0.0005 and l1.y_top + 0.0005 >= l2.y_bottom - 0.0005
 
 
-def neighbors_free_space(lines: Iterable[Line], grid_size: Number, point: Point):
-    """
-    candidates = {Point(point.x - grid_size, point.y), Point(point.x + grid_size, point.y),
-                  Point(point.x, point.y - grid_size),
-                  Point(point.x, point.y + grid_size), Point(point.x - grid_size, point.y - grid_size),
-                  Point(point.x - grid_size, point.y + grid_size),
-                  Point(point.x + grid_size, point.y - grid_size), Point(point.x + grid_size, point.y + grid_size)}
-    """
-
-    candidates = {Point(point.x, point.y - grid_size),
-                  Point(point.x, point.y + grid_size),
-                  Point(point.x + grid_size, point.y),
-                  Point(point.x - grid_size, point.y)}
+def neighbors_free_space(lines: Iterable[Line], grid_size: Number, point: Point, diagonals=True):
+    if diagonals:
+        candidates = {Point(point.x - grid_size, point.y), Point(point.x + grid_size, point.y),
+                      Point(point.x, point.y - grid_size),
+                      Point(point.x, point.y + grid_size), Point(point.x - grid_size, point.y - grid_size),
+                      Point(point.x - grid_size, point.y + grid_size),
+                      Point(point.x + grid_size, point.y - grid_size), Point(point.x + grid_size, point.y + grid_size)}
+    else:
+        candidates = {Point(point.x, point.y - grid_size),
+                      Point(point.x, point.y + grid_size),
+                      Point(point.x + grid_size, point.y),
+                      Point(point.x - grid_size, point.y)}
 
     for cand in set(candidates):
         line = Line(point, cand)
@@ -39,8 +38,8 @@ ui = UI(screen_dim=Rect((-1, -1), (51, 51)), bg_color="white")
 
 
 def do_thing(arena, goal, start):
-    ui.add("blue lines = searched paths; red line = current path; green line = complete path;",
-           coord=ui.dimensions().upper_left, align="left")
+    # ui.add("blue lines = searched paths; red line = current path; green line = complete path;",
+    #       coord=ui.dimensions().upper_left, align="left")
 
     arena_points = {}
     for shape in arena:
@@ -103,10 +102,10 @@ def do_thing(arena, goal, start):
             conv_coord(start),
             conv_coord(goal),
             # arena_neighbors,
-            lambda point: neighbors_free_space(ui_lines, 1, point),
+            lambda point: neighbors_free_space(ui_lines, 1, point, False),
             distance,
-            [100, 50, 20, 1],
-            # lambda point: abs(point.x - goal.x) + abs(point.y - goal.y)
+            [100, 20, 3, 1],
+            # lambda point: abs(point.x - goal.x) + abs(point.y - goal.y),
             lambda point: distance(point, goal),
             draw_path,
             #        max_cost
@@ -126,8 +125,9 @@ arena_blank = [
 arena1 = [
     [
         Rect((0, 40), (40, 30)),
-        Rect((3, 50), (4, 42)),
-        Shape((7, 50), (12, 42), (20, 46), (15, 50)),
+        Rect((8, 47), (3, 48)),
+        Rect((6, 47), (7, 42)),
+        Shape((10, 50), (17, 42), (25, 46), (20, 50)),
         Shape((40, 45), (40, 35), (48, 40)),
         Shape((10, 10), (15, 22), (20, 10)),
         Rect((21, 30), (27, 15)),

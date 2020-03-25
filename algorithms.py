@@ -191,6 +191,7 @@ def ara(start: Coord,
 
         for neighbor in set(get_neighbors(current)):
             calc = cost[current] + get_distance(current, neighbor)
+            # hc = calc + factors[0] * heuristic(neighbor)
 
             if calc < cost[neighbor] and calc < best_cost:
                 prev[neighbor] = current
