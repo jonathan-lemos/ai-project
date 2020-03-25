@@ -5,26 +5,37 @@ import time
 import sys
 
 
+def should_try_intersect(l1: Line, l2: Line):
+    return l1.x_left - 0.0005 <= l2.x_right + 0.0005 and l1.x_right + 0.0005 >= l2.x_left - 0.0005 and l1.y_bottom - 0.0005 <= l2.y_top + 0.0005 and l1.y_top + 0.0005 >= l2.y_bottom - 0.0005
+
+
 def neighbors_free_space(lines: Iterable[Line], grid_size: Number, point: Point):
+    """
     candidates = {Point(point.x - grid_size, point.y), Point(point.x + grid_size, point.y),
                   Point(point.x, point.y - grid_size),
                   Point(point.x, point.y + grid_size), Point(point.x - grid_size, point.y - grid_size),
                   Point(point.x - grid_size, point.y + grid_size),
                   Point(point.x + grid_size, point.y - grid_size), Point(point.x + grid_size, point.y + grid_size)}
+    """
+
+    candidates = {Point(point.x, point.y - grid_size),
+                  Point(point.x, point.y + grid_size),
+                  Point(point.x + grid_size, point.y),
+                  Point(point.x - grid_size, point.y)}
 
     for cand in set(candidates):
         line = Line(point, cand)
-        # if cand.x < 0 or cand.y < 0:
-        #     candidates.remove(cand)
-        #     continue
-        if any(line.intersects(line2) for line2 in lines):
+        if not (0 <= cand.x <= 50 and 0 <= cand.y <= 50):
+            candidates.remove(cand)
+            continue
+        if any(should_try_intersect(line, line2) and line.intersects(line2) for line2 in lines):
             candidates.remove(cand)
             continue
 
     return candidates
 
 
-ui = UI(screen_dim=Rect((-1, -1), (36, 21)), bg_color="white")
+ui = UI(screen_dim=Rect((-1, -1), (51, 51)), bg_color="white")
 
 
 def do_thing(arena, goal, start):
@@ -52,12 +63,10 @@ def do_thing(arena, goal, start):
                 continue
             candidates |= set(shape.points)
 
-        def should_try_intersect(l1: Line, l2: Line):
-            return l1.x_left - 0.0005 <= l2.x_right + 0.0005 and l1.x_right + 0.0005 >= l2.x_left - 0.0005 and l1.y_bottom - 0.0005 <= l2.y_top + 0.0005 and l1.y_top + 0.0005 >= l2.y_bottom - 0.0005
-
         for cand in list(candidates):
             l = Line(point, cand)
-            if any(should_try_intersect(l, x) and l.intersects(x) and l.point_of_intersection(x) != l.point1 and l.point_of_intersection(x) != l.point2
+            if any(should_try_intersect(l, x) and l.intersects(x) and l.point_of_intersection(
+                    x) != l.point1 and l.point_of_intersection(x) != l.point2
                    for
                    x in arena_lines):
                 candidates.remove(cand)
@@ -86,29 +95,20 @@ def do_thing(arena, goal, start):
     ui.add("goal", coord=goal + (1, 1), align="left")
     ui.add("start", coord=start - (1, 1), align="right")
 
-    pathbuf = None
-
-    def draw_path(points: Iterable[Point]):
-        nonlocal pathbuf
-
-        if pathbuf is not None:
-            ui.remove(*pathbuf, width=8, color="red")
-            ui.add(*pathbuf, width=8, color="deep sky blue")
-        tmp = list(points)
-        lin = list(Line(x, y) for x, y in zip(tmp[:-1], tmp[1:]))
-        pathbuf = lin
-        ui.add(*pathbuf, width=8, color="red")
-        time.sleep(0.25)
+    def draw_path(p1: Point, p2: Point):
+        ui.add(Line(p1, p2), width=8, color="orange")
+        # time.sleep(0.25)
 
     for path, color in zip(ara(
             conv_coord(start),
             conv_coord(goal),
-            arena_neighbors,
-            # lambda point: neighbors_free_space(ui_lines, 1, point),
+            # arena_neighbors,
+            lambda point: neighbors_free_space(ui_lines, 1, point),
             distance,
             [100, 50, 20, 1],
-            lambda point: distance(point, Point(*goal)),
-            # draw_path,
+            # lambda point: abs(point.x - goal.x) + abs(point.y - goal.y)
+            lambda point: distance(point, goal),
+            draw_path,
             #        max_cost
     ), ["red", "green", "blue", "purple"]):
         res_list = list(path)
@@ -117,32 +117,27 @@ def do_thing(arena, goal, start):
         ui.add(res_lines, width=10, color=color)
 
 
+arena_blank = [
+    [],
+    Point(50, 50),
+    Point(0, 0)
+]
+
 arena1 = [
-    Rect((2, 1), (17, 6)),
-    Shape((1, 9), (0, 14), (6, 19), (9, 15), (7, 8)),
-    Shape((10, 8), (12, 15), (14, 8)),
-    Shape((14, 13), (14, 19), (18, 20), (20, 17)),
-    Shape((19, 3), (18, 10), (23, 6)),
-    Rect((22, 19), (28, 9)),
-    Shape((28, 1), (25, 2), (25, 6), (28.5, 8), (31, 6), (31, 2)),
-    Shape((32, 8), (29, 17), (31, 19), (34, 16))
-]
-goal1 = Point(34, 19)
-start1 = Point(1, 3)
-
-arena2 = [
-    Rect((1, 0), (7, 12)),
-    Rect((1, 14), (7, 19)),
-    Shape((8, 4), (15, 11), (20, 1)),
-    Shape((20, 8), (20, 19), (10, 19), (10, 15)),
-    Shape((34, 15), (28, 15), (25, 13), (27, 11), (29, 9)),
-    Rect((33, 19), (32, 17))
+    [
+        Rect((0, 40), (40, 30)),
+        Rect((3, 50), (4, 42)),
+        Shape((7, 50), (12, 42), (20, 46), (15, 50)),
+        Shape((40, 45), (40, 35), (48, 40)),
+        Shape((10, 10), (15, 22), (20, 10)),
+        Rect((21, 30), (27, 15)),
+        Shape((25, 1), (30, 28), (42, 28), (48, 1))
+    ],
+    Point(1, 49),
+    Point(1, 1)
 ]
 
-goal2 = Point(34, 17)
-start2 = Point(0, 0)
+do_thing(*arena1)
 
-do_thing(arena1, goal1, start1)
-
-# ui.done()
+ui.done()
 # time.sleep(3)

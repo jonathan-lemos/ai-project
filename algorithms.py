@@ -126,7 +126,7 @@ def ara(start: Coord,
         get_distance: Callable[[Point, Point], Number] = distance,
         factors: Iterable[Number] = (10, 8, 6, 4, 2, 1),
         heuristic: Callable[[Point], Number] = lambda point: 0,
-        callback: Optional[Callable[[Iterable[Point]], None]] = None,
+        callback: Optional[Callable[[Point, Point], None]] = None,
         ) -> Iterable[Iterable[Point]]:
     factors = list(factors)
 
@@ -136,6 +136,7 @@ def ara(start: Coord,
     to_search = prioritymap()
 
     prev = {}
+    prev[start] = start
     cost = defaultdict(lambda: float("inf"))
     cost_with_heuristic = defaultdict(lambda: float("inf"))
 
@@ -163,20 +164,35 @@ def ara(start: Coord,
             to_search.pop()
 
         if callback:
-            callback(build_path(current))
+            callback(prev[current], current)
 
         if current == end:
             # searched.remove(current)
-            if best_cost > cost[current]:
+            if cost[current] < best_cost:
                 best_cost = cost[current]
                 yield build_path(current)
             factors = factors[1:]
+
+            if len(factors) == 0:
+                break
+
+            nodes = [x for s in to_search.values() for x in s]
+            new_to_search = prioritymap()
+            for node in nodes:
+                ch = cost[node] + factors[0] * heuristic(node)
+                cost_with_heuristic[node] = ch
+                if ch in new_to_search:
+                    new_to_search[ch].add(node)
+                else:
+                    new_to_search[ch] = {node}
+            to_search = new_to_search
+
             continue
 
         for neighbor in set(get_neighbors(current)):
             calc = cost[current] + get_distance(current, neighbor)
 
-            if calc < cost[neighbor]:
+            if calc < cost[neighbor] and calc < best_cost:
                 prev[neighbor] = current
                 cost[neighbor] = calc
 
