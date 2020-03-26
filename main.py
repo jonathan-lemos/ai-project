@@ -102,9 +102,9 @@ def do_thing(arena, goal, start):
             conv_coord(start),
             conv_coord(goal),
             # arena_neighbors,
-            lambda point: neighbors_free_space(ui_lines, 1, point, False),
+            lambda point: neighbors_free_space(ui_lines, 1, point, True),
             distance,
-            [100, 20, 3, 1],
+            [100, 20, 2, 1],
             # lambda point: abs(point.x - goal.x) + abs(point.y - goal.y),
             lambda point: distance(point, goal),
             draw_path,
@@ -133,7 +133,7 @@ arena1 = [
         Rect((21, 30), (27, 15)),
         Shape((25, 1), (30, 28), (42, 28), (48, 1))
     ],
-    Point(1, 49),
+    Point(1, 46),
     Point(1, 1)
 ]
 

@@ -193,7 +193,7 @@ def ara(start: Coord,
             calc = cost[current] + get_distance(current, neighbor)
             # hc = calc + factors[0] * heuristic(neighbor)
 
-            if calc < cost[neighbor] and calc < best_cost:
+            if calc < cost[neighbor] and calc + heuristic(neighbor) < best_cost:
                 prev[neighbor] = current
                 cost[neighbor] = calc
 
