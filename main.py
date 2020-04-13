@@ -91,7 +91,7 @@ def do_thing(arena, goal, start):
     ui.add(*cross(goal, 0.5), width=6, color="green")
     ui.add(*cross(start, 0.5), width=6, color="red")
     ui.render()
-    ui.add("goal", coord=goal + (1, 1), align="left")
+    ui.add("goal", coord=goal + (-1, 1), align="left")
     ui.add("start", coord=start - (1, 1), align="right")
 
     def draw_path(p1: Point, p2: Point):
@@ -137,7 +137,10 @@ arena1 = [
     Point(1, 1)
 ]
 
-do_thing(*arena1)
+if len(sys.argv) > 1 and sys.argv[1].lower() == "sample":
+    do_thing(*arena1)
+else:
+    do_thing(*arena_blank)
 
 ui.done()
 # time.sleep(3)
