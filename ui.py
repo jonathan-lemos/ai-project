@@ -1,7 +1,7 @@
-import turtle
 import numpy as np
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 from math import sqrt
+import pygame
 
 Number = Union[int, float]
 
@@ -114,6 +114,13 @@ class Point:
         """
 
         return f"({self.x}, {self.y})"
+
+    def __repr__(self) -> str:
+        """Returns a string representation of this point.
+        This is the same string representation as the equivalent (Number, Number).
+        """
+
+        return f"Point({self.x}, {self.y})"
 
     def __sub__(self, other: "Coord") -> "Point":
         """Does the vector subtraction of two points and returns their sum.
@@ -282,7 +289,7 @@ class Line:
         tmp = seg_intersect(np.array([*self.point1]), np.array([*self.point2]), np.array([*line.point1]),
                             np.array([*line.point2]))
         return (max(self.x_left, line.x_left) - 0.005 <= tmp[0] <= min(self.x_right, line.x_right) + 0.005) and (
-                    max(self.y_bottom, line.y_bottom) - 0.005 <= tmp[1] <= min(self.y_top, line.y_top) + 0.005)
+                max(self.y_bottom, line.y_bottom) - 0.005 <= tmp[1] <= min(self.y_top, line.y_top) + 0.005)
 
     def __eq__(self, other):
         """Returns True if this line equals another.
@@ -317,6 +324,9 @@ class Line:
 
     def __str__(self) -> str:
         return f"{self.point1} -> {self.point2}"
+
+    def __repr__(self) -> str:
+        return f"Line(({self.point1}), ({self.point2}))"
 
 
 class Rect:
@@ -392,7 +402,10 @@ class Rect:
         return self.__hash
 
     def __str__(self) -> str:
-        return f"[{self.upper_left}, {self.upper_right}]"
+        return f"[{self.lower_left}, {self.upper_right}]"
+
+    def __repr__(self) -> str:
+        return f"Rect({self.lower_left}, {self.upper_right})"
 
 
 class Shape:
@@ -451,360 +464,149 @@ class Shape:
     def __str__(self) -> str:
         return " -> ".join(str(x) for x in self.points)
 
+    def __repr__(self) -> str:
+        return "Shape(" + ", ".join(str(x) for x in self.points) + ")"
+
+
+class hashabledict(dict):
+    def __init__(self, other: Dict = None):
+        super().__init__()
+        if other is not None:
+            for key, value in other.items():
+                self[key] = value
+
+    def __key(self):
+        return tuple((k,self[k]) for k in sorted(self))
+    def __hash__(self):
+        return hash(self.__key())
+    def __eq__(self, other):
+        return self.__key() == other.__key()
+
 
 class UI:
     """A user interface that displays lines, shapes, and rectangles.
     """
 
-    def __init__(self, screen_dim: Optional[Rect], bg_color: str = "white", pad_pct: Number = 0.05,
-                 debug: bool = False):
-        """Constructs a UI
+    def __init__(self):
+        self.__input_dim = None
+        self.__scale = None
+        self.__objects = set()
 
-        Args:
-            screen_dim (Optional[Rect]): The dimensions of the coordinate system, or None to automatically determine this.
-                                         For example, Rect((0, 0), (40, 40)) would display objects from (0, 0) to (40, 40).
-                                         The actual rendered dimensions may be increased on one axis to prevent objects from being skewed.
-                                         These can be changed using the dimensions() function.
+        pygame.init()
+        pygame.font.init()
+        info = pygame.display.Info()
+        screen_x, screen_y = info.current_w, info.current_h
+        self.__screen_dim = Rect((0, 0), (int(screen_x * 0.9), int(screen_y * 0.9)))
+        self.__screen = pygame.display.set_mode((self.__screen_dim.upper_right.x, self.__screen_dim.upper_right.y), flags=pygame.HWACCEL | pygame.DOUBLEBUF | pygame.OPENGL)
 
-            bg_color: The background color as a string. This is "white" by default.
-
-            pad_pct: A percentage of the screen dimensions to use as padding.
-                     By default this is 0.05, meaning 5% padding.
-
-            debug: If this is True, objects will be drawn slowly and the cursor will be visible as the lines are drawn.
-                   This is False by default.
-        """
-
-        self.__bg_color = bg_color
-        self.__debug = debug
-        self.__pad_pct = pad_pct
-        self.__objects = {}
-
-        self.__turt = turtle.Turtle()
-        self.__turt.setundobuffer(50000)
-        self.__screen = turtle.Screen()
-
-        self.__screen.bgcolor(self.__bg_color)
-
-        if not self.__debug:
-            self.__turt.speed('fastest')
-            self.__screen.tracer(0, 0)
-        else:
-            self.__turt.speed('slowest')
-
-        self.__screen_dim = screen_dim
         self.__rendered = False
 
-    def add(self,
-            *objs: Union[str, Line, Rect, Shape, Iterable[Union[str, Line, Rect, Shape]]],
-            width: Number = 10,
-            color: str = "black",
-            fillcolor: Optional[str] = None,
-            coord: Optional[Coord] = None,
-            align: str = "center",
-            font_face: str = "Comic Sans MS",
-            font_size: int = 10,
-            font_type: str = "normal",
-            font_color: str = "black") -> None:
+    def add(self, obj: Union[Line, Shape, Rect], color: Tuple[int, int, int] = (0, 0, 0), width: int = 1):
+        tmp = hashabledict({"obj": obj, "color": color, "width": width})
+        self.__objects.add(hashabledict({"obj": obj, "color": color, "width": width}))
+        if self.__rendered:
+            self.__draw(tmp)
+            self.update()
 
-        """Adds several lines, rectangles, or shapes to the UI.
-        These are all drawn in one step unless debug mode is enabled (see constructor).
-        If the UI has been rendered, these are displayed once this function returns (see render())
+    def print(self, text: str, coord: Coord, color: Tuple[int, int, int] = (0, 0, 0), width: int = 1, font: str = "Comic Sans MS"):
+        tmp = hashabledict({"obj": text, "coord": conv_coord(coord), "color": color, "width": width, "font": font})
+        self.__objects.add(hashabledict({"obj": text, "coord": conv_coord(coord), "color": color, "width": width, "font": font}))
+        if self.__rendered:
+            self.__draw(tmp)
+            self.update()
 
-        Examples:
-            ui.add(Line((1, 1), (2, 2)), Shape((3, 4), (8, -1), (-2, 2)),
-            ui.add(*list_of_lines, width=40, color="red")
+    def render(self):
+        if self.__input_dim is None:
+            coords = []
+            for obj in self.__objects:
+                o = obj["obj"]
+                if isinstance(o, str):
+                    coords.append(obj["coord"])
+                elif isinstance(o, Line):
+                    coords.append(o.point1)
+                    coords.append(o.point2)
+                else:
+                    for point in o.points:
+                        coords.append(point)
+            min_x = min(a.x for a in coords)
+            min_y = min(a.y for a in coords)
+            max_x = max(a.x for a in coords)
+            max_y = max(a.y for a in coords)
+            self.__input_dim = Rect((min_x, min_y), (max_x, max_y))
 
-        Args:
-            *objs (Union[Line, Rect, Shape, str]):
-            A varargs sequence of zero or more lines, rectangles, shapes, and/or text to add to the UI.
-            These can also be iterables of the above.
+        if self.__scale is None:
+            idim = self.__input_dim
+            sdim = self.__screen_dim
 
+            sdim = Rect((sdim.width * 0.05, sdim.height * 0.05), (sdim.upper_right.x * 0.95, sdim.upper_right.y * 0.95))
 
-            width (Number): The width of the lines. By default this is 10. I'm not entirely sure what the unit is. This argument is not used for text.
+            input_ratio = (idim.upper_right.x - idim.upper_left.x) / (idim.upper_right.y - idim.lower_right.y)
+            screen_ratio = (sdim.upper_right.x - sdim.upper_left.x) / (sdim.upper_right.y - sdim.lower_right.y)
 
-            color (str): The color of the lines. By default this is "black". This argument is not used for text.
-
-            fillcolor (Optional[str]): The optional fill color of the rectangles and shapes. By default this is None. This argument is only used for Rect and Shape.
-
-            coord (Optional[Coord]): A Point or (Number, Number) to render text at. This argument is only used for text, and MUST BE GIVEN for text.
-
-            align: (str): "left"   - Put the coord on the left edge of the text.
-                          "center" - Put the coord in the middle of the text.
-                          "right"  - Put the coord on the right edge of the text.
-                          This argument is only used for text.
-
-            font_face (str): The font to use. By default this is "Comic Sans MS". This argument is only used for text.
-
-            font_size (int): The font size to use in pt. By default this is 10. This argument is only used for text.
-
-            font_type (str): Used to denote "bold" or "italic" text. By default this is "normal". This argument is only used for text.
-
-            font_color (str): The color of the text. By default this is "black". This argument is only used for text.
-        """
-
-        def do_add(ob):
-            if isinstance(ob, str):
-                if coord is None:
-                    raise Exception(f"Text argument '{ob}' given to add() without corresponding coord argument.")
-                tup = (ob, coord, align, font_face, font_size, font_type, font_color)
-            elif isinstance(ob, Line):
-                tup = (ob, width, color)
+            if input_ratio > screen_ratio:
+                factor = input_ratio / screen_ratio
+                diff_y = idim.height * (factor - 1)
+                ll = Point(idim.lower_left.x, idim.lower_left.y - diff_y / 2)
+                ur = Point(idim.upper_right.x, idim.upper_right.y + diff_y / 2)
+                idim = Rect(ll, ur)
             else:
-                tup = (ob, width, color, fillcolor)
+                factor = screen_ratio / input_ratio
+                diff_x = idim.width * (factor - 1)
+                ll = Point(idim.lower_left.x - diff_x / 2, idim.lower_left.y)
+                ur = Point(idim.upper_right.x + diff_x / 2, idim.upper_right.y)
+                idim = Rect(ll, ur)
 
-            self.__objects[tup] = None
-            if self.__rendered:
-                self.__objects[tup] = self.__draw(tup)
+            idelta = idim.lower_left
+            sdelta = sdim.lower_left
 
-        for obj in objs:
-            try:
-                if isinstance(obj, str):
-                    raise TypeError
-                tmp = iter(obj)
-            except TypeError:
-                do_add(obj)
-                continue
-            for o in tmp:
-                do_add(o)
+            ix, iy = idim.width, idim.height
+            sx, sy = sdim.width, sdim.height
 
-        if self.__rendered:
-            self.__screen.update()
+            def scale(point: Point):
+                point -= idelta
+                pt = Point(point.x, idim.height - point.y)
+                ret = Point(pt.x / ix * sx, pt.y / iy * sy)
+                ret += sdelta
+                return int(ret.x), int(ret.y)
 
-    # noinspection PyMethodMayBeStatic
-    def done(self) -> None:
-        """Must be the last call in any program using UI.
-        This is a limitation of turtle.
-        """
-        turtle.done()
-
-    def remove(self, *objs: Union[Line, Rect, Shape], width: Number = 10, color: str = "black",
-               fillcolor: Optional[str] = None) -> bool:
-        """Removes zero or more objects added through add()
-        Text cannot be removed.
-
-        Args:
-            *objs (Union[Line, Rect, Shape]): The objects to remove.
-
-            width (Number): The width of the objects.
-                            This must be the same as the objects that were added.
-                            This has the same default as add().
-
-            color (str): The color of the objects.
-                         This must be the same as the objects that were added.
-                         This has the same default as add().
-
-            fillcolor (Optional[str]): The fill color of the objects.
-                                       This must be the same as the objects that were added.
-                                       This has the same default as add().
-
-        Returns:
-            True if the objects were removed. False if at least one object was not previously added.
-           """
-
-        ret = True
-        if self.__rendered:
-            self.screen().update()
-        for obj in objs:
-            tup = (obj, width, color, fillcolor)
-            if tup in self.__objects:
-                if self.__rendered:
-                    for identifier in self.__objects[tup]:
-                        self.__screen.getcanvas().delete(identifier)
-                        if identifier in self.__turt.items:
-                            self.__turt.items.remove(identifier)
-                self.__objects.pop((obj, width, color, fillcolor))
-            else:
-                ret = False
-        if self.__rendered:
-            self.__screen.update()
-        return ret
-
-    def render(self) -> None:
-        """Displays the UI's window and all objects within.
-        If the dimensions are not set, this method will automatically detemine them."""
-
-        if self.__screen_dim:
-            ymin = self.__screen_dim.lower_left.y
-            ymax = self.__screen_dim.upper_right.y
-            xmin = self.__screen_dim.lower_left.x
-            xmax = self.__screen_dim.upper_right.x
-        else:
-            # get the maximum/minimum x, y to calculate the new coordinate system's bounds
-            objs = [obj for obj, width, color in self.__objects]
-            lines = [y for x in [[obj] if type(obj) == Line else obj.lines for obj in objs] for y in x]
-            points = [point for line in lines for point in [line.point1, line.point2]]
-
-            ymin = min(point.y for point in points)
-            ymax = max(point.y for point in points)
-            xmin = min(point.x for point in points)
-            xmax = max(point.x for point in points)
-
-        # we need to adjust the coordinate system so objects look proportional and take up most of the window size
-
-        width = xmax - xmin
-        height = ymax - ymin
-
-        # get the h/w ratios for the screen and our grid space
-        screen_ratio = self.__screen.window_height() / self.__screen.window_width()
-        grid_ratio = height / width
-
-        # give extra space on one of the axes to make the adjusted coordinates proportional to the window size
-        if screen_ratio > grid_ratio:
-            height_diff = screen_ratio * width - height
-
-            ymax += height_diff / 2
-            ymin -= height_diff / 2
-        else:
-            width_diff = screen_ratio ** -1 * height - width
-
-            xmax += width_diff / 2
-            xmin -= width_diff / 2
-
-        # add a slight bit of padding so objects don't render right on the edge
-        xpad = (xmax - xmin) * self.__pad_pct
-        ypad = (ymax - ymin) * self.__pad_pct
-
-        self.__screen_dim = Rect((xmin, ymin), (xmax, ymax))
+            self.__scale = scale
 
         if not self.__rendered:
-            self.__screen.setworldcoordinates(llx=xmin - xpad,
-                                              lly=ymin - ypad,
-                                              urx=xmax + xpad,
-                                              ury=ymax + ypad)
-            self.__turt.setundobuffer(100000)
+            self.__screen = pygame.display.set_mode((self.__screen_dim.upper_right.x, self.__screen_dim.upper_right.y), flags=pygame.HWACCEL | pygame.DOUBLEBUF)
 
-        self.__rendered = True
-
-        if not self.__debug:
-            self.__turt.hideturtle()
+        self.__screen.fill((255, 255, 255))
 
         for obj in self.__objects:
-            self.__objects[obj] = self.__draw(obj)
+            self.__draw(obj)
 
-        self.__screen.update()
+        self.__rendered = True
+        self.update()
 
-    def points(self) -> Iterable[Point]:
-        """Returns an iterable of points in the UI."""
+    def __draw(self, obj: Dict):
+        o = obj["obj"]
+        if isinstance(o, str):
+            font = pygame.font.SysFont(obj["font"], obj["width"])
+            surf = font.render(o, True, obj["color"])
+            self.__screen.blit(surf, (obj["coord"].x, obj["coord"].y))
+        elif isinstance(o, Line):
+            pygame.draw.line(self.__screen, obj["color"], self.__scale(o.point1), self.__scale(o.point2), obj["width"])
+        elif isinstance(o, Shape):
+            pygame.draw.polygon(self.__screen, obj["color"], [self.__scale(x) for x in o.points], obj["width"])
+        elif isinstance(o, Rect):
+            sr = Rect(self.__scale(o.lower_left), self.__scale(o.upper_right))
+            pygame.draw.rect(self.__screen, obj["color"], pygame.rect.Rect(*sr.lower_left, sr.width, sr.height))
 
-        return (x.points for x in [x[0] for x in self.__objects])
+    # noinspection PyMethodMayBeStatic
+    def done(self):
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return
+            pygame.display.flip()
 
-    def lines(self) -> Iterable[Line]:
-        """Returns an iterable of lines in the UI."""
+    def update(self):
+        pygame.display.update()
+        pygame.display.flip()
 
-        for obj in (x[0] for x in self.__objects):
-            if isinstance(obj, str):
-                continue
-            if isinstance(obj, Line):
-                yield obj
-            else:
-                for line in obj.lines:
-                    yield line
-
-    def dimensions(self, new_dim: Optional[Rect] = None) -> Optional[Rect]:
-        """If no argument is given, returns the dimensions of the UI if they exist.
-        Otherwise, sets the dimensions according to the argument.
-        The actual rendered dimensions might be extended on one axis to prevent rendered objects from being skewed."""
-
-        if new_dim is None:
-            return self.__screen_dim
-        self.__screen_dim = new_dim
-        if self.__rendered:
-            self.render()
-
-    def rendered(self) -> bool:
-        """Returns True if render() was called, False if not."""
-        return self.__rendered
-
-    def __draw(self, obj: Tuple) -> List[int]:
-        if isinstance(obj[0], Line):
-            return self.__draw_line(*obj)
-        elif isinstance(obj[0], str):
-            self.__draw_text(*obj)
-            return [0]
-        else:
-            return self.__draw_shape(obj[0].lines, *obj[1:])
-
-    def __draw_shape(self, lines: Iterable[Line], width: Number, color: str, fillcolor: Optional[str]) -> List[int]:
-        lin = list(lines)
-
-        if len(lin) == 0:
-            return []
-
-        self.__turt.pencolor(color)
-        self.__turt.width(width)
-
-        self.__turt.penup()
-        self.__turt.setpos(lin[0].point1.x, lin[0].point1.y)
-
-        if fillcolor:
-            self.__turt.fillcolor(fillcolor)
-            self.__turt.begin_fill()
-            res = [[self.__undo_buf()[-1][1]]]
-        else:
-            res = []
-
-        res += [self.__draw_line(line, width, color) for line in lin]
-
-        if fillcolor:
-            self.__turt.end_fill()
-
-        return [y for x in res for y in x]
-
-    def __draw_line(self, line: Line, width: Number, color: str) -> List[int]:
-        self.__turt.pencolor(color)
-        self.__turt.width(width)
-
-        self.__turt.penup()
-        self.__turt.setpos(line.point1.x, line.point1.y)
-        self.__turt.pendown()
-
-        self.__turt.setpos(line.point2.x, line.point2.y)
-
-        # this horseshit gets the correct item id from the undo buffer since sometimes it doesn't show up in turt.items
-        return [self.__undo_buf()[-1][4][0]]
-
-    def __draw_text(self, text: str, coord: Coord, align: str = "center", font_face: str = "Comic Sans MS",
-                    font_size: int = 10, font_type: str = "normal", font_color: str = "black") -> List[int]:
-        """Prints text on the UI.
-
-        Args:
-            coord (Coord): The Point/(Number, Number) to put the text on.
-            text (str): The text to print.
-            align: (str): "left"   - Put the coord on the left edge of the text.
-                          "center" - Put the coord in the middle of the text.
-                          "right"  - Put the coord on the right edge of the text.
-            font_face (str): The font to use. By default this is "Comic Sans MS".
-            font_size (int): The font size to use in pt. By default this is 10.
-            font_type (str): Used to denote "bold" or "italic" text. By default this is "normal".
-            font_color (str): The color of the text. By default this is "black".
-        """
-
-        self.__turt.penup()
-        self.__turt.setpos(*coord)
-        self.__turt.color(font_color)
-        self.__turt.write(text, align=align, font=(font_face, font_size, font_type))
-
-        return [self.__undo_buf()[-1][1][1]]
-
-    def __undo_buf(self) -> List:
-        ret = []
-        for item in self.__turt.undobuffer.buffer:
-            if item is None or item[0] is None:
-                break
-            ret.append(item)
-        return ret
-        # return list(filter(lambda x: x != [None], self.__turt.undobuffer.buffer))
-
-    def undo_buf(self) -> List:
-        return self.__undo_buf()
-
-    def clear(self):
-        self.turt().clear()
-        self.__objects = {}
-
-    def turt(self):
-        return self.__turt
-
-    def screen(self):
-        return self.__screen
+    def scale(self):
+        return self.__scale

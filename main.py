@@ -3,6 +3,8 @@ from algorithms import ara, distance
 from typing import Iterable
 import time
 import sys
+import random
+import itertools
 
 
 def should_try_intersect(l1: Line, l2: Line):
@@ -32,9 +34,6 @@ def neighbors_free_space(lines: Iterable[Line], grid_size: Number, point: Point,
             continue
 
     return candidates
-
-
-ui = UI(screen_dim=Rect((-1, -1), (51, 51)), bg_color="white")
 
 
 def do_thing(arena, goal, start):
@@ -72,9 +71,10 @@ def do_thing(arena, goal, start):
 
         return candidates
 
-    ui.add(*arena, width=8)
+    for obj in arena:
+        ui.add(obj, width=1, color=(0, 0, 0))
 
-    ui_lines = list(ui.lines())
+    # ui_lines = list(ui.lines())
 
     def cross(center: Coord, leg_len: Number):
         cen = conv_coord(center)
@@ -88,59 +88,57 @@ def do_thing(arena, goal, start):
             Line((hx, ly), (lx, hy))
         ]
 
-    ui.add(*cross(goal, 0.5), width=6, color="green")
-    ui.add(*cross(start, 0.5), width=6, color="red")
+    for line in cross(goal, 0.5):
+        ui.add(line, width=6, color=(20, 130, 20))
+    for line in cross(start, 0.5):
+        ui.add(line, width=6, color=(130, 20, 20))
     ui.render()
-    ui.add("goal", coord=goal + (-1, 1), align="left")
-    ui.add("start", coord=start - (1, 1), align="right")
+    ui.print("goal", coord=goal + (-1, 1))
+    ui.print("start", coord=start - (1, 1))
 
     def draw_path(p1: Point, p2: Point):
-        ui.add(Line(p1, p2), width=8, color="orange")
+        ui.add(Line(p1, p2), width=3, color=(200, 150, 20))
         # time.sleep(0.25)
 
     for path, color in zip(ara(
             conv_coord(start),
             conv_coord(goal),
             # arena_neighbors,
-            lambda point: neighbors_free_space(ui_lines, 1, point, True),
+            # lambda point: neighbors_free_space(ui_lines, 1, point, False),
+            neighbors_grid,
             distance,
             [100, 20, 2, 1],
             # lambda point: abs(point.x - goal.x) + abs(point.y - goal.y),
             lambda point: distance(point, goal),
             draw_path,
             #        max_cost
-    ), ["red", "green", "blue", "purple"]):
+    ), [(200, 20, 20), (20, 200, 20), (20, 20, 200), (200, 20, 255)]):
         res_list = list(path)
         res_lines = [Line(x, y) for x, y in zip(res_list[:-1], res_list[1:])]
 
-        ui.add(res_lines, width=10, color=color)
+        for line in res_lines:
+            ui.add(line, width=6, color=color)
+        time.sleep(1)
 
 
-arena_blank = [
-    [],
-    Point(50, 50),
-    Point(0, 0)
-]
+if len(sys.argv) < 3:
+    print(f"Usage: {sys.argv[0]} [environment size - 100|200|300] [fill percent - 10|20|30]")
+    sys.exit(0)
 
-arena1 = [
-    [
-        Rect((0, 40), (40, 30)),
-        Rect((8, 47), (3, 48)),
-        Rect((6, 47), (7, 42)),
-        Shape((10, 50), (17, 42), (25, 46), (20, 50)),
-        Shape((40, 45), (40, 35), (48, 40)),
-        Shape((10, 10), (15, 22), (20, 10)),
-        Rect((21, 30), (27, 15)),
-        Shape((25, 1), (30, 28), (42, 28), (48, 1))
-    ],
-    Point(1, 46),
-    Point(1, 1)
-]
+env_size = int(sys.argv[1])
+env_fill = float(sys.argv[2]) / 100
 
-if len(sys.argv) > 1 and sys.argv[1].lower() == "sample":
-    do_thing(*arena1)
-else:
-    do_thing(*arena_blank)
+ui = UI()
+
+points = set(random.sample(list(itertools.product(range(env_size), repeat=2)), k=int(env_size ** 2 * env_fill)))
+arena = [Rect(p, (p[0] + 1, p[1] + 1)) for p in points]
+
+
+def neighbors_grid(p: Point):
+    return {Point(int(p.x), int(p.y)), Point(int(p.x), int(p.y + 1)), Point(int(p.x + 1), int(p.y)), Point(int(p.x + 1), int(p.y + 1))} - points
+
+
+do_thing(arena, Point(env_size, env_size), Point(0.5, 0.5))
 
 ui.done()
 # time.sleep(3)
